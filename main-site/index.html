@@ -86,10 +86,10 @@
 
     <div class="hud-right">
         <div class="hud-pause">
-            <button id="pauseBtn" class="glass-btn pause-btn" type="button" aria-label="Pause" aria-keyshortcuts="1">
+            <button id="pauseBtn" class="glass-btn pause-btn" type="button" aria-label="Pause" aria-keyshortcuts="Space">
                 <span data-icon="pause"></span>
             </button>
-            <kbd class="kbd-hint" aria-hidden="true">1</kbd>
+            <kbd class="kbd-hint" aria-hidden="true">Space</kbd>
         </div>
 
         <!-- The menu tray. Slides off the right edge, leaving the arrow tab. -->
@@ -135,13 +135,13 @@
         <div class="modal glass panel" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
             <h2 id="pauseTitle">Paused</h2>
             <p class="keys-legend">
-                <kbd>1</kbd> pause, <kbd>2</kbd> restart, <kbd>Backspace</kbd> edit, <kbd>Esc</kbd> clear.
+                <kbd>Space</kbd> pause, <kbd>F1</kbd> restart, <kbd>Backspace</kbd> edit, <kbd>Esc</kbd> clear.
             </p>
             <div class="panel-actions">
                 <button id="continueBtn" class="btn btn-primary pill" type="button">
                     <span data-icon="play"></span>Continue
                 </button>
-                <button id="restartBtn" class="btn btn-quiet pill" type="button" aria-keyshortcuts="2">
+                <button id="restartBtn" class="btn btn-quiet pill" type="button" aria-keyshortcuts="F1">
                     <span data-icon="refresh"></span>Restart
                 </button>
             </div>
@@ -179,7 +179,7 @@
             </div>
 
             <div class="panel-actions">
-                <button id="playAgainBtn" class="btn btn-primary pill" type="button" aria-keyshortcuts="2">
+                <button id="playAgainBtn" class="btn btn-primary pill" type="button" aria-keyshortcuts="F1">
                     <span data-icon="refresh"></span>Play again
                 </button>
                 <button id="resultBoardBtn" class="btn btn-quiet pill" type="button">

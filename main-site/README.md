@@ -25,8 +25,18 @@ behind an arrow tab. The typing box floats at the bottom, with a button to
 clear it. On phones and tablets an on-screen keyboard takes the bottom of the
 screen, the typing box moves into its head, and drops stop at its top edge.
 
-**Keys:** `1` pause, `2` restart, `Backspace` edit, `Esc` clear. Letters that
-match no falling word are ignored, and the typing box shakes.
+**Keys:** `Space` pause and resume, `F1` restart, `Backspace` edit, `Esc`
+clear. Letters that match no falling word are ignored, and the typing box
+shakes.
+
+**Words:** `js/words.js` picks each one. Lengths start at 4 to 6 letters and
+widen to 5 to 9 over four minutes, with a short one now and then. A long
+word, 10 letters or more, comes now and then, never two at once: about one
+every 15 to 20 seconds. Early long words stop at 11 letters; the longest open
+up as the game goes. Each length is dealt from a shuffled deck, so its words
+all come up once before any repeats, and the last 300 words dealt are held
+back across lengths. Words already falling are skipped, and a word whose
+first letter nothing on screen shares is preferred.
 
 **Game over:** the finished game can be added to the leaderboard under a
 name, which is remembered in this browser. Four boards: best score, total

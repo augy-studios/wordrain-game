@@ -19,14 +19,9 @@ import {
   speedMultiplier,
   wordScore,
 } from "./rules.js";
+import { FALLBACK_WORDS, createWordPicker, normalizeWords } from "./words.js";
 
 const WORDLIST_URL = "/wordlist.json";
-
-const FALLBACK_WORDS = [
-  "rain", "storm", "cloud", "typing", "ocean", "stream", "letter", "canvas", "neon", "glass", "binary",
-  "script", "system", "syntax", "galaxy", "signal", "kernel", "module", "vector", "packet", "memory",
-  "buffer", "future", "cipher", "planet", "chrome", "azure", "delta", "omega", "lumen", "matrix", "rocket",
-];
 
 const MAX_DROPS = 100;
 const WATER_EASE_SECONDS = 0.8;
@@ -99,30 +94,6 @@ function readPalette() {
   };
 }
 
-/* ---- Words ---- */
-
-// Buckets by length, from either { "4": [...], "5": [...] } or { words: [...] }.
-// Only plain a to z words are kept: the on-screen keyboard has nothing else.
-function normalizeWordSource(json) {
-  const buckets = {};
-  const push = (w) => {
-    const clean = String(w ?? "").trim().toLowerCase();
-    if (!/^[a-z]+$/.test(clean)) return;
-    (buckets[clean.length] ||= []).push(clean);
-  };
-
-  let found = false;
-  for (const key of Object.keys(json ?? {})) {
-    if (!Number.isNaN(parseInt(key, 10)) && Array.isArray(json[key])) {
-      found = true;
-      json[key].forEach(push);
-    }
-  }
-  if (!found && Array.isArray(json?.words)) json.words.forEach(push);
-  if (!Object.keys(buckets).length) FALLBACK_WORDS.forEach(push);
-  return buckets;
-}
-
 // Works on a phone, a tablet in "desktop" mode, a PWA and an Android WebView.
 function isMobileLike() {
   const ua = navigator.userAgent || "";
@@ -169,8 +140,7 @@ export function initGame() {
   let profile = PROFILES.keyboard;
   let useVK = false;
 
-  let wordBuckets = normalizeWordSource({ words: FALLBACK_WORDS });
-  let allWords = Object.values(wordBuckets).flat();
+  const words = createWordPicker(normalizeWords({ words: FALLBACK_WORDS }));
 
   let nextId = 1;
   let gameNumber = 0;
@@ -209,63 +179,15 @@ export function initGame() {
   const playHeight = () => Math.max(1, play.bottom - play.top);
   const waterTop = () => play.bottom - playHeight() * state.waterLevel;
 
-  /* ---- Word choice ---- */
+  /* ---- Words ---- */
 
-  // A length that trends longer with difficulty, with 4 to 8 letters boosted
-  // and 13 or more held back.
-  function chooseTargetLength() {
-    const lengths = Object.keys(wordBuckets).map(Number).sort((a, b) => a - b);
-    if (!lengths.length) return null;
-
-    const FAVOR_MIN = 4;
-    const FAVOR_MAX = 8;
-    const FAVOR_BOOST = 2.2;
-    const LONG_LEN_START = 13;
-    const LONG_PENALTY = 0.35;
-    const THROWBACK_SMALLEST_P = 0.04;
-
-    const df = clamp(state.time / 120 + (state.level - 1) * 0.12, 0, 1);
-    const minL = lengths[0];
-    const maxL = lengths[lengths.length - 1];
-    const target = Math.round(minL + (maxL - minL) * df * df);
-
-    let center = lengths[0];
-    for (const L of lengths) if (Math.abs(L - target) < Math.abs(center - target)) center = L;
-
-    // Now and then, dip into something shorter.
-    const pSmall = clamp(0.14 + 0.1 * Math.sin(state.time * 0.4), 0.1, 0.25);
-    if (Math.random() < pSmall) {
-      const low = lengths.filter((L) => L <= Math.max(center, FAVOR_MAX));
-      if (low.length) return low[Math.floor((1 - Math.pow(1 - Math.random(), 1.6)) * low.length)];
-    }
-    if (Math.random() < THROWBACK_SMALLEST_P) return minL;
-
-    const weights = lengths.map((L) => {
-      let w = 1 / (1 + Math.abs(L - center));
-      if (L >= LONG_LEN_START) w *= LONG_PENALTY;
-      if (L >= FAVOR_MIN && L <= FAVOR_MAX) w *= FAVOR_BOOST;
-      return Math.max(w, 0.0001);
-    });
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < lengths.length; i += 1) {
-      r -= weights[i];
-      if (r <= 0) return lengths[i];
-    }
-    return center;
-  }
-
-  function pickWord(len) {
-    const bucket = wordBuckets[len];
-    if (bucket?.length) return bucket[(Math.random() * bucket.length) | 0];
-    return allWords[(Math.random() * allWords.length) | 0] ?? "word";
-  }
-
+  // Which word falls next is words.js's call: length by how far into the
+  // game it is, no repeats for a good while, and an occasional long one.
   async function loadWords() {
     try {
       const response = await fetch(WORDLIST_URL);
       if (!response.ok) throw new Error(`${response.status}`);
-      wordBuckets = normalizeWordSource(await response.json());
-      allWords = Object.values(wordBuckets).flat();
+      words.load(normalizeWords(await response.json()));
     } catch (cause) {
       console.warn("word list did not load, using the built in words:", cause);
     }
@@ -378,7 +300,10 @@ export function initGame() {
 
   function spawnDrop() {
     if (state.drops.length >= MAX_DROPS) return;
-    const word = pickWord(chooseTargetLength());
+    const word = words.next({
+      time: state.time,
+      falling: state.drops.filter((d) => !d.dead).map((d) => d.word),
+    });
     state.drops.push(new Drop(word, Math.random() < doubleChance(state.time, state.level)));
   }
 
@@ -718,12 +643,19 @@ export function initGame() {
     if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
 
     const key = e.key;
-    if (key === "1") {
+    if (key === " ") {
+      // Paused or over, Space on a focused button presses it: Continue,
+      // Restart, Play again. Otherwise Space is the game's, and focus is
+      // dropped so no button it was resting on clicks as well.
+      if (!state.running && e.target instanceof Element && e.target.closest("button, a")) return;
       e.preventDefault();
+      if (e.repeat) return;
+      document.activeElement?.blur?.();
       togglePause();
       return;
     }
-    if (key === "2") {
+    if (key === "F1") {
+      // The browser's help, otherwise.
       e.preventDefault();
       restart();
       return;
