@@ -35,7 +35,7 @@
   --glass-read: color-mix(in srgb, var(--bg) 80%, transparent);
   /* Where the floating controls start: under the update bar when there is
      one, which already clears the notch, or under the notch. */
-  --hud-top: max(calc(var(--notice-h, 0px) + 14px), calc(env(safe-area-inset-top) + 14px));
+  --hud-top: calc(var(--vv-top, 0px) + max(calc(var(--notice-h, 0px) + 14px), calc(env(safe-area-inset-top) + 14px)));
   --hud-edge: max(16px, calc(env(safe-area-inset-right) + 16px));
   --hud-edge-left: max(16px, calc(env(safe-area-inset-left) + 16px));
 }
@@ -91,7 +91,8 @@ kbd {
 }
 /* Key hints mean nothing on a touch screen. */
 body.vk-on .kbd-hint,
-body.vk-on .keys-legend { display: none; }
+body.vk-on .keys-legend,
+body.device-keyboard .kbd-hint { display: none; }
 
 /* ---- Floating controls ----
    Each sits on its own over the playing field; there is no bar to hide a
@@ -216,7 +217,8 @@ body.vk-on .keys-legend { display: none; }
   z-index: 5;
   left: 0;
   right: 0;
-  bottom: max(18px, calc(env(safe-area-inset-bottom) + 18px));
+  /* --kb-inset is the height the device's keyboard covers, 0 when closed. */
+  bottom: calc(var(--kb-inset, 0px) + max(18px, calc(env(safe-area-inset-bottom) + 18px)));
   display: flex;
   justify-content: center;
   padding: 0 12px;
@@ -229,11 +231,14 @@ body.vk-on .keys-legend { display: none; }
   pointer-events: auto;
 }
 
+/* A real text field, so a tap on a phone opens its keyboard. Its font stays
+   above 16px, under which iOS zooms the page on focus. */
 .buffer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   min-width: 228px;
+  width: 228px;
+  text-align: center;
+  caret-color: var(--brand-ink);
   max-width: 60vw;
   height: 42px;
   padding: 0 16px;
@@ -250,13 +255,14 @@ body.vk-on .keys-legend { display: none; }
   white-space: nowrap;
   overflow: hidden;
 }
-.buffer:empty::before {
-  content: attr(data-placeholder);
+.buffer::placeholder {
   color: var(--muted-strong);
+  opacity: 1;
   font-size: 0.9rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+.buffer:focus-visible { outline-offset: 3px; }
 .buffer.shake {
   color: var(--error);
   border-color: var(--error);
@@ -275,7 +281,7 @@ body.vk-on .keys-legend { display: none; }
   z-index: 6;
   left: max(8px, env(safe-area-inset-left));
   right: max(8px, env(safe-area-inset-right));
-  bottom: max(8px, env(safe-area-inset-bottom));
+  bottom: calc(var(--kb-inset, 0px) + max(8px, env(safe-area-inset-bottom)));
   max-width: 720px;
   margin: 0 auto;
   display: flex;
@@ -290,6 +296,7 @@ body.vk-on .keys-legend { display: none; }
 .vk-head .typing-row { width: 100%; }
 .vk-head .buffer {
   flex: 1;
+  width: auto;
   min-width: 0;
   max-width: none;
   height: 38px;
@@ -310,6 +317,9 @@ body.vk-on .keys-legend { display: none; }
   flex-direction: column;
   gap: 6px;
 }
+/* The device's keyboard is open: its keys replace these, and the head, with
+   the typing box, rides just above it. */
+body.device-keyboard .vk-keys { display: none; }
 .k-row {
   display: grid;
   grid-auto-flow: column;
@@ -663,7 +673,7 @@ body.vk-on .keys-legend { display: none; }
   .glass-btn { width: 40px; height: 40px; }
   .tray { --tray-shift: calc(40px + 8px + var(--hud-edge)); }
   .tray-tab { height: 40px; }
-  .buffer { min-width: 180px; }
+  .buffer { min-width: 180px; width: 180px; }
   .final-stats { grid-template-columns: repeat(2, 1fr); }
   .update-notice-inner { flex-wrap: wrap; }
   .update-notice p { flex-basis: 100%; }

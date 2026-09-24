@@ -119,7 +119,10 @@
             <button id="clearBtn" class="glass-btn small" type="button" aria-label="Clear typing" aria-keyshortcuts="Escape">
                 <span data-icon="undo"></span>
             </button>
-            <output id="buffer" class="buffer" data-placeholder="Start typing!" aria-label="Typed so far"></output>
+            <!-- A real field, so a tap on a phone opens its keyboard. -->
+            <input id="buffer" class="buffer" type="text" placeholder="Start typing!" aria-label="Type the falling words"
+                autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
+
         </div>
     </div>
 

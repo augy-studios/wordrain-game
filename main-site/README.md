@@ -25,6 +25,13 @@ behind an arrow tab. The typing box floats at the bottom, with a button to
 clear it. On phones and tablets an on-screen keyboard takes the bottom of the
 screen, the typing box moves into its head, and drops stop at its top edge.
 
+**The device's keyboard:** the typing box is a real text field, so tapping it
+on a phone opens the phone's own keyboard. While that is open the game's keys
+hide, the typing box rides just above it, and drops stop at its top edge,
+found through the visual viewport. Anything the phone's keyboard types
+counts, swiped words and suggestions included. Closing it brings the game's
+keys back.
+
 **Keys:** `Space` pause and resume, and play again once a game is over
 (after a moment, so a late pause does not throw away the score). `F1`
 restart, `Backspace` edit, `Esc` clear. Letters that match no falling word are ignored, and the typing box

@@ -165,12 +165,15 @@ export function initGame() {
   }
 
   // The playing field: from under the update bar, when there is one, down to
-  // the top of the on-screen keyboard, or the bottom of the screen. Drops
-  // never fall behind the keyboard, where nobody can read them.
+  // the top of the on-screen keyboard, the device's keyboard, or the bottom
+  // of the screen. Drops never fall behind a keyboard, where nobody can read
+  // them. The device's keyboard is found through the visual viewport, which
+  // shrinks, and on iOS scrolls, when it opens.
   function measurePlayArea() {
     const bar = document.querySelector(".update-notice");
-    const top = bar ? bar.getBoundingClientRect().bottom : 0;
-    let bottom = height;
+    const vv = window.visualViewport;
+    const top = Math.max(bar ? bar.getBoundingClientRect().bottom : 0, vv ? vv.offsetTop : 0);
+    let bottom = Math.min(height, vv ? vv.offsetTop + vv.height : height);
     if (useVK) bottom = Math.min(bottom, vk.getBoundingClientRect().top - 6);
     if (bottom - top < 120) bottom = Math.min(height, top + 120);
     play.top = top;
@@ -382,9 +385,13 @@ export function initGame() {
     }
   }
 
-  function typeChar(c) {
+  // What has been typed is now `next`: one more letter from a key, or
+  // anything at all from the device's keyboard, which can swipe or suggest
+  // a whole word, delete several letters, or autocorrect. A word matched in
+  // full pops; a start that matches nothing is refused when the setting says
+  // so, and the typing box goes back to what it was.
+  function applyTyped(next) {
     if (!state.running || state.over) return;
-    const next = state.input + c;
     const live = state.drops.filter((d) => !d.dead);
 
     const exact = lowest(live.filter((d) => d.word === next));
@@ -392,13 +399,27 @@ export function initGame() {
       pop(exact);
       return;
     }
-    if (!live.some((d) => d.word.startsWith(next)) && getSettings().ignore_wrong) {
+    if (next && !live.some((d) => d.word.startsWith(next)) && getSettings().ignore_wrong) {
       rejectKey();
+      renderBuffer();
       return;
     }
     state.input = next;
     refreshTarget();
     renderBuffer();
+  }
+
+  function typeChar(c) {
+    applyTyped(state.input + c);
+  }
+
+  // The typing box is a real text field, so tapping it on a phone opens the
+  // device's keyboard. Whatever that puts in the field is read back as the
+  // whole of what has been typed.
+  function onBufferInput() {
+    const typed = buffer.value.toLowerCase().replace(/[^a-z]/g, "");
+    if (typed !== state.input) applyTyped(typed);
+    else renderBuffer();
   }
 
   function backspace() {
@@ -422,8 +443,47 @@ export function initGame() {
     buffer.classList.add("shake");
   }
 
+  // Only written when it differs, so a keyboard partway through composing a
+  // word is not interrupted by the field being set to what it already holds.
   function renderBuffer() {
-    buffer.textContent = state.input;
+    if (buffer.value !== state.input) buffer.value = state.input;
+  }
+
+  /* ---- The device's keyboard ---- */
+
+  // How much of the screen the device's keyboard covers, for the typing row
+  // and the on-screen keyboard's head to sit above, and how far iOS has
+  // scrolled the view to show the field, for the top controls to follow.
+  let deviceKeyboardOpen = false;
+  let lastInset = -1;
+  let lastTop = -1;
+
+  function syncViewport() {
+    const vv = window.visualViewport;
+    const top = vv ? Math.round(vv.offsetTop) : 0;
+    const inset = vv ? Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height))) : 0;
+    const root = document.documentElement.style;
+    if (inset !== lastInset) root.setProperty("--kb-inset", `${inset}px`);
+    if (top !== lastTop) root.setProperty("--vv-top", `${top}px`);
+    lastInset = inset;
+    lastTop = top;
+
+    // Android can hide the keyboard with the back button and leave the
+    // field focused. Let go of it, so the game's own keys come back.
+    const focused = document.activeElement === buffer;
+    if (deviceKeyboardOpen && focused && inset < 80) buffer.blur();
+    deviceKeyboardOpen = focused && inset >= 80;
+  }
+
+  // Only on a touch screen: a click into the box on a desktop is just a click.
+  const onTouchScreen = () => useVK || isMobileLike();
+
+  function onBufferFocus() {
+    if (onTouchScreen()) document.body.classList.add("device-keyboard");
+  }
+
+  function onBufferBlur() {
+    document.body.classList.remove("device-keyboard");
   }
 
   function renderStats() {
@@ -643,9 +703,16 @@ export function initGame() {
     if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
     // A window is open, or somebody is typing their name.
     if (document.body.classList.contains("modal-open")) return;
-    if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
-
     const key = e.key;
+    // In the typing box, letters and Backspace arrive through its input
+    // event instead; Space, Esc and F1 are still the game's. Any other field
+    // is somebody typing their name.
+    if (e.target === buffer) {
+      if (key !== " " && key !== "Escape" && key !== "F1") return;
+    } else if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) {
+      return;
+    }
+
     if (key === " ") {
       // Paused or over, Space on a focused button presses it: Continue,
       // Restart, Play again. Otherwise Space is the game's, and focus is
@@ -805,6 +872,16 @@ export function initGame() {
     clearInput();
     $("clearBtn").blur();
   });
+  // A tap on the clear button leaves focus where it was, so the device's
+  // keyboard stays open.
+  $("clearBtn").addEventListener("pointerdown", (e) => e.preventDefault());
+  buffer.addEventListener("input", onBufferInput);
+  buffer.addEventListener("focus", onBufferFocus);
+  buffer.addEventListener("blur", onBufferBlur);
+  syncViewport();
+  window.visualViewport?.addEventListener("resize", syncViewport);
+  window.visualViewport?.addEventListener("scroll", syncViewport);
+  window.addEventListener("resize", syncViewport);
   $("resultBoardBtn").addEventListener("click", () => openLeaderboard());
   $("submitForm").addEventListener("submit", onSubmit);
   buffer.addEventListener("animationend", () => buffer.classList.remove("shake"));

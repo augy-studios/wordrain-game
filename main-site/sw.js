@@ -30,7 +30,7 @@
 // 4. Nothing under /api/ is ever cached. A cached leaderboard is a wrong
 //    answer, not a stale one, and a cached run would be somebody else's.
 
-const VERSION = "wordrain-v5";
+const VERSION = "wordrain-v6";
 
 const SHELL = `wordrain-shell-${VERSION}`;
 
