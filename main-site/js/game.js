@@ -25,8 +25,8 @@ const WORDLIST_URL = "/wordlist.json";
 
 const MAX_DROPS = 100;
 const SPACE_RESTART_DELAY_MS = 800;
-const AUTOPLAY_KEY_MS = 110;
-const AUTOPLAY_WORD_MS = 300;
+const AUTOPLAY_KEY_MS = 25;
+const AUTOPLAY_WORD_MS = 75;
 const WATER_EASE_SECONDS = 0.8;
 const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
@@ -454,7 +454,7 @@ export function initGame() {
 
   /* ---- Autoplay ---- */
 
-  // Types the lowest drop a letter at a time, at a human-ish pace, through
+  // Types the lowest drop a letter at a time, far quicker than a person, through
   // the same path as a key. A word already started, by the bot or by hand,
   // is finished first; a start that matches nothing is cleared.
   function updateAutoplay(dt) {
