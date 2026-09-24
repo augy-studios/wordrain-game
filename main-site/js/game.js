@@ -25,6 +25,8 @@ const WORDLIST_URL = "/wordlist.json";
 
 const MAX_DROPS = 100;
 const SPACE_RESTART_DELAY_MS = 800;
+const AUTOPLAY_KEY_MS = 110;
+const AUTOPLAY_WORD_MS = 300;
 const WATER_EASE_SECONDS = 0.8;
 const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
@@ -151,6 +153,7 @@ export function initGame() {
   const state = {};
   let run = null; // this game's leaderboard run
   let result = null; // the finished game, kept so the submit can be retried
+  let autoplay = false; // F2, deliberately not shown anywhere
 
   /* ---- Canvas size ---- */
 
@@ -449,6 +452,38 @@ export function initGame() {
     if (buffer.value !== state.input) buffer.value = state.input;
   }
 
+  /* ---- Autoplay ---- */
+
+  // Types the lowest drop a letter at a time, at a human-ish pace, through
+  // the same path as a key. A word already started, by the bot or by hand,
+  // is finished first; a start that matches nothing is cleared.
+  function updateAutoplay(dt) {
+    state.botTimer -= dt * 1000;
+    if (state.botTimer > 0) return;
+    const live = state.drops.filter((d) => !d.dead);
+    let target = live.find((d) => d.id === state.targetId);
+    if (!target) {
+      target = lowest(live);
+      if (!target) return;
+      if (state.input) clearInput();
+    }
+    typeChar(target.word[state.input.length]);
+    state.botTimer = (state.targetId === null ? AUTOPLAY_WORD_MS : AUTOPLAY_KEY_MS) * rand(0.7, 1.3);
+  }
+
+  // On, it plays the game in hand, or a new one if that one is over. A game
+  // it has touched cannot go on the leaderboard.
+  function toggleAutoplay() {
+    autoplay = !autoplay;
+    if (!autoplay) return;
+    if (state.over) {
+      restart();
+      return;
+    }
+    state.autoplayed = true;
+    setPaused(false);
+  }
+
   /* ---- The device's keyboard ---- */
 
   // How much of the screen the device's keyboard covers, for the typing row
@@ -593,6 +628,8 @@ export function initGame() {
       waterTarget: 0,
       wavePhase: 0,
       drops: [],
+      autoplayed: autoplay,
+      botTimer: 0,
     });
     particles.length = 0;
     result = null;
@@ -612,6 +649,8 @@ export function initGame() {
     state.running = false;
     state.over = true;
     state.overAt = performance.now();
+    // The next game is the reader's again.
+    autoplay = false;
     result = {
       score: state.score,
       level: state.level,
@@ -626,7 +665,9 @@ export function initGame() {
     $("finalMisses").textContent = String(result.misses);
 
     const prefs = getSettings();
-    const unavailable = run?.failed
+    const unavailable = state.autoplayed
+      ? "Autoplay played this game, so it cannot go on the leaderboard."
+      : run?.failed
       ? "This game started without a connection, so it cannot go on the leaderboard."
       : result.words === 0
         ? "Pop at least one word to go on the leaderboard."
@@ -705,10 +746,10 @@ export function initGame() {
     if (document.body.classList.contains("modal-open")) return;
     const key = e.key;
     // In the typing box, letters and Backspace arrive through its input
-    // event instead; Space, Esc and F1 are still the game's. Any other field
-    // is somebody typing their name.
+    // event instead; Space, Esc, F1 and F2 are still the game's. Any other
+    // field is somebody typing their name.
     if (e.target === buffer) {
-      if (key !== " " && key !== "Escape" && key !== "F1") return;
+      if (key !== " " && key !== "Escape" && key !== "F1" && key !== "F2") return;
     } else if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) {
       return;
     }
@@ -735,6 +776,12 @@ export function initGame() {
       // The browser's help, otherwise.
       e.preventDefault();
       restart();
+      return;
+    }
+    if (key === "F2") {
+      // Autoplay, on and off. Kept out of every hint on purpose.
+      e.preventDefault();
+      if (!e.repeat) toggleAutoplay();
       return;
     }
     if (!state.running || state.over) return;
@@ -782,6 +829,7 @@ export function initGame() {
     }
 
     refreshTarget({ clearIfLost: true });
+    if (autoplay) updateAutoplay(dt);
     updateParticles(dt);
   }
 
