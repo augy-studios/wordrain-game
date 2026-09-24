@@ -38,6 +38,20 @@ const SHORT_CHANCE = 0.1;
 // the list, so a small one always has something left to deal.
 const RECENT_MAX = 300;
 
+const stageAt = (time) => Math.min(1, Math.max(0, time / STAGE_SECONDS));
+
+// The longest word that can be dealt this far into a game. Early long words
+// stop at 11 letters; the longest open up as the game goes. Also checked by
+// the leaderboard API (rules.js), which is why it is exported.
+export function longestAt(time) {
+  return LONG_FROM + 1 + Math.round(stageAt(time) * 10);
+}
+
+// The chance a word dealt now is a long one, when no long one is falling.
+export function longChanceAt(time) {
+  return LONG_CHANCE_START + stageAt(time) * (LONG_CHANCE_END - LONG_CHANCE_START);
+}
+
 // Buckets by length, from either { "4": [...], "5": [...] } or { words: [...] }.
 // Only plain a to z words are kept: the on-screen keyboard has nothing else.
 // Duplicates are dropped, so a word listed twice is not twice as likely.
@@ -110,17 +124,15 @@ export function createWordPicker(buckets, random = Math.random) {
   }
 
   function chooseLength(time, falling) {
-    const stage = Math.min(1, Math.max(0, time / STAGE_SECONDS));
+    const stage = stageAt(time);
     const low = Math.round(BAND_START[0] + stage * (BAND_END[0] - BAND_START[0]));
     const high = Math.round(BAND_START[1] + stage * (BAND_END[1] - BAND_START[1]));
 
-    // Early long words stop at 11 letters; the longest open up as the game goes.
-    const longest = LONG_FROM + 1 + Math.round(stage * 10);
+    const longest = longestAt(time);
     const longs = lengths.filter((L) => L >= LONG_FROM && L <= longest);
     const longFalling = falling.some((w) => w.length >= LONG_FROM);
-    const longChance = LONG_CHANCE_START + stage * (LONG_CHANCE_END - LONG_CHANCE_START);
     // Mostly the shorter of the long ones: a 10 is three times a 12.
-    if (longs.length && !longFalling && random() < longChance) {
+    if (longs.length && !longFalling && random() < longChanceAt(time)) {
       return weighted(longs, (L) => 1 / (L - LONG_FROM + 1));
     }
 

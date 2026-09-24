@@ -1,17 +1,33 @@
 // POST /api/leaderboard/submit
-//   { run_id, client_key, name, score, level, words, misses, duration_ms }
+//   { run_id, client_key, name, score, level, words, misses, duration_ms, log }
 //   -> { name, best_score, best_rank, total, games, total_rank,
 //        best_level, level_rank, best_words, words_rank }
 //
 // The game runs in the browser, so unlike a server-held round the numbers
-// here come from the page. They are checked against the run's server-side
-// start time with the rules in js/rules.js, the same module the game plays
-// by. That bounds cheating; it does not prevent it.
+// here come from the page. They come with the game's log of every drop,
+// which is replayed against the run's server-side start time with the rules
+// in js/rules.js, the same module the game plays by. That bounds cheating;
+// it does not prevent it.
 
+import { readFileSync } from "node:fs";
 import { clientKey, endpoint, HttpError, runId } from "../_lib/http.js";
 import { cleanName } from "../_lib/names.js";
 import { rest, rpc } from "../_lib/supabase.js";
 import { checkResult, CLOCK_SLACK_MS, RUN_TTL_MS } from "../../js/rules.js";
+import { FALLBACK_WORDS, normalizeWords } from "../../js/words.js";
+
+// Every word the game could have dealt: the list, and the built in words it
+// plays with until the list loads or if it never does. vercel.json bundles
+// the list with this function. A word taken out of the list is refused from
+// a page still on the old one until it updates.
+let dictionary = null;
+function isWord(word) {
+  dictionary ??= new Set([
+    ...Object.values(normalizeWords(JSON.parse(readFileSync(new URL("../../wordlist.json", import.meta.url), "utf8")))).flat(),
+    ...FALLBACK_WORDS,
+  ]);
+  return dictionary.has(word);
+}
 
 const REFUSALS = {
   not_found: [404, "That game is not one this browser started."],
@@ -47,11 +63,12 @@ export default endpoint("POST", async ({ body }) => {
   const elapsed = Date.now() - Date.parse(run.created_at);
   if (elapsed > RUN_TTL_MS) throw refuse("expired");
 
-  const reason = checkResult(result, elapsed);
+  const reason = checkResult(result, body.log, elapsed, isWord);
   if (reason) {
     // The reason stays in the logs. Telling the caller which bound it hit
     // would only help tune the next attempt.
-    console.warn(`implausible run ${id}: ${reason}`, result, { elapsed });
+    const drops = Array.isArray(body.log) ? body.log.length : typeof body.log;
+    console.warn(`implausible run ${id}: ${reason}`, result, { elapsed, drops });
     throw refuse("implausible");
   }
 

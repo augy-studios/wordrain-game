@@ -80,15 +80,21 @@ run can only be submitted with the key that started it.
 | Endpoint | Body | Returns |
 |---|---|---|
 | `POST /api/run/start` | `client_key` | `run_id, expires_in` |
-| `POST /api/leaderboard/submit` | `run_id, client_key, name, score, level, words, misses, duration_ms` | the name's best, total, level and words, and its rank on each board |
+| `POST /api/leaderboard/submit` | `run_id, client_key, name, score, level, words, misses, duration_ms, log` | the name's best, total, level and words, and its rank on each board |
 | `POST /api/leaderboard/name` | `name` | `name`, cleaned, or a `400` saying why not |
 | `GET /api/leaderboard` | `?board=best` (default), `total`, `level` or `words` | `board, entries`, cached 30 s |
 
 Errors are `{ "error": code, "message"? }`: `400` bad input, `404` no such
 run for this browser, `409` already submitted, `410` run older than three
-hours, `422` numbers real play could not have made. The numbers come from the
-page, so submit checks them with `checkResult` in `js/rules.js` against the
-run's server-side start time; the reason a game was refused goes to the logs,
+hours, `422` a game real play could not have made. The numbers come from the
+page, so they come with `log`, every drop popped or landed as
+`[spawned ms, gone ms, word, hit, double]`, and submit replays it with
+`checkResult` in `js/rules.js` against the run's server-side start time. The
+numbers must be what the log adds up to, every word must be in the list and
+no longer than the game could have dealt by then, the water must fill only
+at the end, typing may not outrun 20 characters a second for long, words may
+not be popped quicker than anyone could react more than now and then, and
+doubles and long words may not beat the odds. The reason a game was refused goes to the logs,
 not the caller. There is no login and there are no rate limits.
 
 ## Environment variables (Vercel)

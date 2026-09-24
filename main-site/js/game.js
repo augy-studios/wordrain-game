@@ -7,16 +7,15 @@ import { icon } from "./icons.js";
 import { openLeaderboard } from "./leaderboard.js";
 import { getSettings, saveSettings } from "./settings.js";
 import {
-  DOUBLE_HIT_WEIGHT,
-  DOUBLE_MISS_WEIGHT,
   FIRST_SPAWN_MS,
   PROFILES,
-  WATER_PER_HIT,
-  WATER_PER_MISS,
+  WATER_EASE_SECONDS,
+  WATER_FULL,
   doubleChance,
   levelAt,
   spawnIntervalMs,
   speedMultiplier,
+  waterAfter,
   wordScore,
 } from "./rules.js";
 import { FALLBACK_WORDS, createWordPicker, normalizeWords } from "./words.js";
@@ -27,7 +26,6 @@ const MAX_DROPS = 100;
 const SPACE_RESTART_DELAY_MS = 800;
 const AUTOPLAY_KEY_MS = 25;
 const AUTOPLAY_WORD_MS = 75;
-const WATER_EASE_SECONDS = 0.8;
 const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
 const PILL_GAP = 4;
@@ -205,6 +203,7 @@ export function initGame() {
   class Drop {
     constructor(word, isDouble) {
       this.id = nextId++;
+      this.spawnedAt = Math.floor(state.time * 1000);
       this.word = word;
       this.isDouble = isDouble;
       this.r = BASE_RADIUS * (isDouble ? 2 : 1);
@@ -318,19 +317,28 @@ export function initGame() {
 
   /* ---- Scoring ---- */
 
+  // Every drop popped or landed, for the leaderboard API to replay. The
+  // format is rules.js's checkResult. Floored to the millisecond, so the
+  // level worked out from it is the level the game was on.
+  function record(drop, hit) {
+    state.log.push([drop.spawnedAt, Math.floor(state.time * 1000), drop.word, hit ? 1 : 0, drop.isDouble ? 1 : 0]);
+  }
+
   function onMiss(drop) {
+    record(drop, false);
     state.misses += 1;
-    state.waterTarget = clamp(state.waterTarget + WATER_PER_MISS * (drop.isDouble ? DOUBLE_MISS_WEIGHT : 1), 0, 1);
+    state.waterTarget = waterAfter(state.waterTarget, false, drop.isDouble);
     splash(drop.x, waterTop(), true);
     renderStats();
   }
 
   function pop(drop) {
+    record(drop, true);
     drop.dead = true;
     state.drops = state.drops.filter((d) => d !== drop);
     state.words += 1;
     state.score += wordScore(drop.word.length, drop.isDouble, state.level);
-    state.waterTarget = clamp(state.waterTarget - WATER_PER_HIT * (drop.isDouble ? DOUBLE_HIT_WEIGHT : 1), 0, 1);
+    state.waterTarget = waterAfter(state.waterTarget, true, drop.isDouble);
     splash(drop.x, drop.y, false);
     state.input = "";
     state.targetId = null;
@@ -628,6 +636,7 @@ export function initGame() {
       waterTarget: 0,
       wavePhase: 0,
       drops: [],
+      log: [],
       autoplayed: autoplay,
       botTimer: 0,
     });
@@ -657,6 +666,7 @@ export function initGame() {
       words: state.words,
       misses: state.misses,
       durationMs: Math.round(state.time * 1000),
+      log: state.log,
     };
 
     $("finalScore").textContent = String(result.score);
@@ -823,7 +833,7 @@ export function initGame() {
 
     const k = 1 - Math.exp(-dt / WATER_EASE_SECONDS);
     state.waterLevel += (state.waterTarget - state.waterLevel) * k;
-    if (state.waterTarget >= 1 && state.waterLevel >= 0.995) {
+    if (state.waterTarget >= 1 && state.waterLevel >= WATER_FULL) {
       endGame();
       return;
     }

@@ -3,6 +3,11 @@
     "version": 2,
     "cleanUrls": true,
     "regions": ["sin1"],
+    "functions": {
+        "api/leaderboard/submit.js": {
+            "includeFiles": "wordlist.json"
+        }
+    },
     "rewrites": [{
         "source": "/",
         "destination": "/"

@@ -72,6 +72,7 @@ export const api = {
       words: result.words,
       misses: result.misses,
       duration_ms: result.durationMs,
+      log: result.log,
     }),
   leaderboard: (board) => call("GET", `/api/leaderboard?board=${encodeURIComponent(board)}`),
 };
