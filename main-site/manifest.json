@@ -1,16 +1,18 @@
 {
-    "name": "Word Rain Game by UwU Apps",
-    "short_name": "Word Rain Game",
-    "description": "A simple wordrain app; view live wordrain at a glance!",
+    "name": "Word Rain by UwU Apps",
+    "short_name": "Word Rain",
+    "description": "Type the falling words before they hit the water. A quick typing game that plays offline, with a keyboard or on your phone.",
     "icons": [{
-            "src": "XWR-192.png",
+            "src": "/XWR-192.png",
             "type": "image/png",
-            "sizes": "192x192"
+            "sizes": "192x192",
+            "purpose": "any"
         },
         {
-            "src": "XWR-512.png",
+            "src": "/XWR-512.png",
             "type": "image/png",
-            "sizes": "512x512"
+            "sizes": "512x512",
+            "purpose": "any"
         }
     ],
     "screenshots": [{
@@ -27,8 +29,8 @@
         }
     ],
     "start_url": "/",
-    "theme_color": "#cfc",
-    "background_color": "#cfc",
+    "theme_color": "#ccffcc",
+    "background_color": "#ccffcc",
     "display": "standalone",
     "display_override": ["fullscreen", "minimal-ui", "window-controls-overlay"],
     "orientation": "any",
@@ -37,8 +39,8 @@
     "scope": "/",
     "lang": "en",
     "categories": [
+        "games",
         "entertainment",
-        "lifestyle",
-        "utilities"
+        "education"
     ]
 }

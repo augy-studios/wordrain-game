@@ -1,0 +1,10 @@
+{
+  "name": "wordrain",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Word Rain: the PWA and its leaderboard API, deployed on Vercel.",
+  "engines": {
+    "node": ">=18"
+  }
+}
