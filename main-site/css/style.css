@@ -400,6 +400,17 @@ body.vk-on .keys-legend { display: none; }
 }
 .coffee-link svg { width: 16px; height: 16px; }
 
+.panel .credit {
+  margin-top: -6px;
+  font-size: 0.8rem;
+}
+
+/* A key hint inside a button, after its label. */
+.btn .kbd-hint {
+  margin-left: 2px;
+  font-size: 0.7rem;
+}
+
 .final-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

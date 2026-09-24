@@ -25,8 +25,9 @@ behind an arrow tab. The typing box floats at the bottom, with a button to
 clear it. On phones and tablets an on-screen keyboard takes the bottom of the
 screen, the typing box moves into its head, and drops stop at its top edge.
 
-**Keys:** `Space` pause and resume, `F1` restart, `Backspace` edit, `Esc`
-clear. Letters that match no falling word are ignored, and the typing box
+**Keys:** `Space` pause and resume, and play again once a game is over
+(after a moment, so a late pause does not throw away the score). `F1`
+restart, `Backspace` edit, `Esc` clear. Letters that match no falling word are ignored, and the typing box
 shakes.
 
 **Words:** `js/words.js` picks each one. Lengths start at 4 to 6 letters and

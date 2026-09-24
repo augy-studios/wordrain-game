@@ -24,6 +24,7 @@ import { FALLBACK_WORDS, createWordPicker, normalizeWords } from "./words.js";
 const WORDLIST_URL = "/wordlist.json";
 
 const MAX_DROPS = 100;
+const SPACE_RESTART_DELAY_MS = 800;
 const WATER_EASE_SECONDS = 0.8;
 const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
@@ -518,6 +519,7 @@ export function initGame() {
     Object.assign(state, {
       running: true,
       over: false,
+      overAt: 0,
       score: 0,
       misses: 0,
       words: 0,
@@ -549,6 +551,7 @@ export function initGame() {
   function endGame() {
     state.running = false;
     state.over = true;
+    state.overAt = performance.now();
     result = {
       score: state.score,
       level: state.level,
@@ -650,6 +653,13 @@ export function initGame() {
       if (!state.running && e.target instanceof Element && e.target.closest("button, a")) return;
       e.preventDefault();
       if (e.repeat) return;
+      if (state.over) {
+        // Play again. Not in the first moment, so a Space meant as a pause
+        // just as the water fills does not throw away an unsaved score.
+        if (performance.now() - state.overAt < SPACE_RESTART_DELAY_MS) return;
+        restart();
+        return;
+      }
       document.activeElement?.blur?.();
       togglePause();
       return;
