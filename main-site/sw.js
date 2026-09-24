@@ -1,12 +1,12 @@
-const CACHE = "template-offline-v1";
+const CACHE = "wordrain-v1";
 
 const ASSETS = [
   "/",
   "/index.html",
   "/style.css",
   "/script.js",
-  "/templateicon1-192.png",
-  "/templateicon1-512.png",
+  "/XWR-192.png",
+  "/XWR-512.png",
   "/favicon.ico",
   "/manifest.json"
 ];
