@@ -12,6 +12,15 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Proxima Nova, only for the words under the drops (js/game.js), where a
+   plainer face reads faster than Jua. */
+@font-face {
+  font-family: "Proxima Nova";
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/proxima-nova.woff2") format("woff2");
+}
+
 :root[data-mode="dark"] { color-scheme: dark; }
 
 /* Water is a fixed-meaning accent, like the footer heart in other uwuapps:
