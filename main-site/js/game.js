@@ -27,6 +27,7 @@ const MAX_DROPS = 100;
 const SPACE_RESTART_DELAY_MS = 800;
 const AUTOPLAY_KEY_MS = 25;
 const AUTOPLAY_WORD_MS = 75;
+const TRIPLE_TAP_MS = 400;
 const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
 const PILL_GAP = 4;
@@ -157,7 +158,7 @@ export function initGame() {
   const state = {};
   let run = null; // this game's leaderboard run
   let result = null; // the finished game, kept so the submit can be retried
-  let autoplay = false; // F2, deliberately not shown anywhere
+  let autoplay = false; // F2, or three quick taps on the level; deliberately not shown anywhere
 
   /* ---- Canvas size ---- */
 
@@ -506,6 +507,23 @@ export function initGame() {
     }
     state.autoplayed = true;
     setPaused(false);
+  }
+
+  // A phone has no F2: three taps on the level in quick succession stand in
+  // for it. Touch only, and each tap within TRIPLE_TAP_MS of the one before.
+  let taps = 0;
+  let lastTapAt = 0;
+
+  function onLevelTap(e) {
+    if (e.pointerType !== "touch") return;
+    // Leaves focus where it was, so the device's keyboard stays open.
+    e.preventDefault();
+    const now = performance.now();
+    taps = now - lastTapAt <= TRIPLE_TAP_MS ? taps + 1 : 1;
+    lastTapAt = now;
+    if (taps < 3) return;
+    taps = 0;
+    toggleAutoplay();
   }
 
   /* ---- The device's keyboard ---- */
@@ -985,6 +1003,7 @@ export function initGame() {
   document.addEventListener("wordrain:settings", applyInputMode);
 
   window.addEventListener("keydown", onKeyDown);
+  document.querySelector(".hud-level").addEventListener("pointerdown", onLevelTap);
   $("pauseBtn").addEventListener("click", togglePause);
   $("continueBtn").addEventListener("click", () => setPaused(false));
   // Wrapped, so the click event is not taken for a seed.

@@ -147,6 +147,12 @@ body.device-keyboard .kbd-hint { display: none; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink);
+  /* Three quick taps toggle autoplay: take them, without selecting the text. */
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .hud-line {
   font-size: 0.95rem;
