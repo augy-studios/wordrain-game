@@ -14,7 +14,7 @@ functions.
 | `api/` | The leaderboard API, below. Vercel does not route `api/_lib/`. |
 | `css/` | `theme.css` is the uwuapps theme system verbatim; `style.css` is this app's layout. |
 | `js/` | ES modules. `app.js` is the entry point; every file must be in `PRECACHE` in `sw.js`. `rules.js` is also imported by `api/`, so keep it free of anything browser only. |
-| `fonts/` | Jua, self-hosted, with its licence, and Proxima Nova for the drop words. |
+| `fonts/` | Jua, and Nova Round for the drop words, self-hosted, with their licences. |
 | `images/` | Manifest screenshots. |
 
 **The game screen:** the game starts as soon as the page opens. Words fall on

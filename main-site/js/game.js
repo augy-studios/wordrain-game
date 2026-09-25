@@ -30,7 +30,7 @@ const BASE_RADIUS = 18;
 const PILL_HEIGHT = 24;
 const PILL_GAP = 4;
 const PILL_PAD = 8;
-const WORD_FONT = '15px "Proxima Nova", "Segoe UI", sans-serif';
+const WORD_FONT = '15px "Nova Round", "Segoe UI", sans-serif';
 const BADGE_FONT = '12px "Jua", "Segoe UI", sans-serif';
 
 const KEY_LAYOUT = [
