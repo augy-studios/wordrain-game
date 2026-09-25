@@ -149,6 +149,20 @@
                     <span data-icon="refresh"></span>Restart
                 </button>
             </div>
+            <!-- Seeds: the same seed plays the same words. game.js fills and wires both copies. -->
+            <p class="seed-line">
+                Seed <code class="seed-code"></code>
+                <button class="btn btn-quiet pill" type="button" data-copy-seed><span data-icon="copy"></span><span class="copy-label">Copy</span></button>
+            </p>
+            <form class="seed-form" autocomplete="off">
+                <label for="pauseSeedInput" class="visually-hidden">Seed to play</label>
+                <div class="guess">
+                    <input id="pauseSeedInput" class="field seed-input" type="text" placeholder="Paste a seed" maxlength="24"
+                        autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+                    <button class="btn btn-quiet" type="submit">Play seed</button>
+                </div>
+                <p class="seed-msg submit-msg" role="status" aria-live="polite"></p>
+            </form>
             <a class="coffee-link" href="https://donate.stripe.com/28o2akeAr3hv0DK6oo" target="_blank" rel="noopener noreferrer">
                 <span data-icon="coffee"></span>Buy Augy a Coffee
             </a>
@@ -166,6 +180,10 @@
                 <div><dt>Words</dt><dd id="finalWords">0</dd></div>
                 <div><dt>Misses</dt><dd id="finalMisses">0</dd></div>
             </dl>
+            <p class="seed-line">
+                Seed <code class="seed-code"></code>
+                <button class="btn btn-quiet pill" type="button" data-copy-seed><span data-icon="copy"></span><span class="copy-label">Copy</span></button>
+            </p>
 
             <form id="submitForm" class="submit" autocomplete="off">
                 <label for="nameInput" class="submit-label">Add this game to the leaderboard</label>
@@ -191,6 +209,15 @@
                     <span data-icon="trophy"></span>Leaderboard
                 </button>
             </div>
+            <form class="seed-form" autocomplete="off">
+                <label for="overSeedInput" class="visually-hidden">Seed to play</label>
+                <div class="guess">
+                    <input id="overSeedInput" class="field seed-input" type="text" placeholder="Paste a seed" maxlength="24"
+                        autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+                    <button class="btn btn-quiet" type="submit">Play seed</button>
+                </div>
+                <p class="seed-msg submit-msg" role="status" aria-live="polite"></p>
+            </form>
             <a class="coffee-link" href="https://donate.stripe.com/28o2akeAr3hv0DK6oo" target="_blank" rel="noopener noreferrer">
                 <span data-icon="coffee"></span>Buy Augy a Coffee
             </a>

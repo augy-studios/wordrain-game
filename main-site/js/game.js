@@ -18,6 +18,7 @@ import {
   waterAfter,
   wordScore,
 } from "./rules.js";
+import { cleanSeed, makeSeed, seededRandom } from "./seed.js";
 import { FALLBACK_WORDS, createWordPicker, normalizeWords } from "./words.js";
 
 const WORDLIST_URL = "/wordlist.json";
@@ -39,7 +40,10 @@ const KEY_LAYOUT = [
   ["ESC", ..."ZXCVBNM", "DEL"],
 ];
 
-const rand = (a, b) => a + Math.random() * (b - a);
+// Math.random is for what only looks different, the splashes and autoplay's
+// pace. What a game deals comes from its seed.
+const between = (random, a, b) => a + random() * (b - a);
+const rand = (a, b) => between(Math.random, a, b);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -141,7 +145,9 @@ export function initGame() {
   let profile = PROFILES.keyboard;
   let useVK = false;
 
-  const words = createWordPicker(normalizeWords({ words: FALLBACK_WORDS }));
+  // Swapped for each drop's own stream in spawnDrop.
+  let wordRandom = Math.random;
+  const words = createWordPicker(normalizeWords({ words: FALLBACK_WORDS }), () => wordRandom());
 
   let nextId = 1;
   let gameNumber = 0;
@@ -201,7 +207,7 @@ export function initGame() {
   /* ---- Drops ---- */
 
   class Drop {
-    constructor(word, isDouble) {
+    constructor(word, isDouble, random) {
       this.id = nextId++;
       this.spawnedAt = Math.floor(state.time * 1000);
       this.word = word;
@@ -209,11 +215,13 @@ export function initGame() {
       this.r = BASE_RADIUS * (isDouble ? 2 : 1);
       // Fixed at spawn, so a drop keeps the pace it started with.
       this.mult = speedMultiplier(state.time, state.level) * (isDouble ? 0.95 : 1);
-      this.drift = rand(-10, 10);
+      this.drift = between(random, -10, 10);
       this.dead = false;
       this.measure();
       const half = this.halfWidth();
-      this.x = width > half * 2 ? rand(half, width - half) : width / 2;
+      // Drawn even on a screen too narrow to use it, so the stream stays in step.
+      const across = random();
+      this.x = width > half * 2 ? half + across * (width - half * 2) : width / 2;
       this.y = play.top - this.r;
     }
 
@@ -304,13 +312,21 @@ export function initGame() {
     }
   }
 
+  // Each drop draws from streams of its own, keyed on the seed and its place
+  // in the game, rather than one stream for the whole game. The word picker
+  // draws more or fewer numbers depending on what is still falling, which
+  // depends on the typing; with one stream, a single word popped sooner would
+  // change every drop after it.
   function spawnDrop() {
     if (state.drops.length >= MAX_DROPS) return;
+    const n = state.spawned++;
+    wordRandom = seededRandom(`${state.seed}/${n}/word`);
     const word = words.next({
       time: state.time,
       falling: state.drops.filter((d) => !d.dead).map((d) => d.word),
     });
-    state.drops.push(new Drop(word, Math.random() < doubleChance(state.time, state.level)));
+    const random = seededRandom(`${state.seed}/${n}`);
+    state.drops.push(new Drop(word, random() < doubleChance(state.time, state.level), random));
   }
 
   const lowest = (drops) => drops.reduce((best, d) => (!best || d.y > best.y ? d : best), null);
@@ -617,9 +633,12 @@ export function initGame() {
     run = mine;
   }
 
-  function newGame() {
+  function newGame(seed = makeSeed()) {
     gameNumber += 1;
+    words.reset();
     Object.assign(state, {
+      seed,
+      spawned: 0,
       running: true,
       over: false,
       overAt: 0,
@@ -646,12 +665,56 @@ export function initGame() {
     $("gameOverOverlay").classList.add("hidden");
     renderStats();
     renderBuffer();
+    renderSeed();
     startRun();
   }
 
-  function restart() {
-    newGame();
+  function restart(seed) {
+    newGame(seed);
     document.activeElement?.blur?.();
+  }
+
+  /* ---- Seeds ---- */
+
+  // The seed shows on the pause and game over panels, with a button to copy
+  // it, and either panel takes one pasted back in to play it.
+  function renderSeed() {
+    document.querySelectorAll(".seed-code").forEach((el) => {
+      el.textContent = state.seed;
+    });
+    document.querySelectorAll(".seed-form").forEach((form) => {
+      form.reset();
+      form.querySelector(".seed-msg").textContent = "";
+    });
+  }
+
+  async function copySeed(btn) {
+    const label = btn.querySelector(".copy-label");
+    try {
+      await navigator.clipboard.writeText(state.seed);
+      label.textContent = "Copied";
+    } catch {
+      // No clipboard, as on a page not served over https: select the seed
+      // instead, ready to copy by hand.
+      getSelection()?.selectAllChildren(btn.closest(".seed-line").querySelector(".seed-code"));
+      label.textContent = "Selected";
+    }
+    setTimeout(() => {
+      label.textContent = "Copy";
+    }, 1500);
+  }
+
+  function onSeedSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.querySelector(".seed-input");
+    const seed = cleanSeed(input.value);
+    if (!seed) {
+      form.querySelector(".seed-msg").textContent = "Paste a seed first.";
+      input.focus();
+      return;
+    }
+    restart(seed);
   }
 
   function endGame() {
@@ -924,8 +987,11 @@ export function initGame() {
   window.addEventListener("keydown", onKeyDown);
   $("pauseBtn").addEventListener("click", togglePause);
   $("continueBtn").addEventListener("click", () => setPaused(false));
-  $("restartBtn").addEventListener("click", restart);
-  $("playAgainBtn").addEventListener("click", restart);
+  // Wrapped, so the click event is not taken for a seed.
+  $("restartBtn").addEventListener("click", () => restart());
+  $("playAgainBtn").addEventListener("click", () => restart());
+  document.querySelectorAll("[data-copy-seed]").forEach((btn) => btn.addEventListener("click", () => copySeed(btn)));
+  document.querySelectorAll(".seed-form").forEach((form) => form.addEventListener("submit", onSeedSubmit));
   $("clearBtn").addEventListener("click", () => {
     clearInput();
     $("clearBtn").blur();

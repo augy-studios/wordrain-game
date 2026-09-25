@@ -94,6 +94,14 @@ export function createWordPicker(buckets, random = Math.random) {
     decks = {};
   }
 
+  // A new game: fresh decks and nothing held back, so a seed deals the same
+  // words whatever was played before it.
+  function reset() {
+    decks = {};
+    recent.length = 0;
+    recentSet.clear();
+  }
+
   const recentLimit = () => Math.min(RECENT_MAX, Math.floor(allWords.length / 2));
 
   function remember(word) {
@@ -192,5 +200,5 @@ export function createWordPicker(buckets, random = Math.random) {
   }
 
   load(buckets);
-  return { next, load };
+  return { next, load, reset };
 }

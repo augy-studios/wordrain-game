@@ -539,6 +539,37 @@ body.device-keyboard .vk-keys { display: none; }
 }
 .ok-icon svg { width: 100%; height: 100%; }
 
+/* The game's seed, with its copy button, and a field to play one. */
+.panel .seed-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.seed-code {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--ink);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  /* One tap selects it all, for copying by hand. */
+  user-select: all;
+}
+.seed-line .btn { padding: 5px 12px; }
+.seed-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.seed-input:not(:placeholder-shown) { text-transform: uppercase; }
+.panel .seed-msg:empty { display: none; }
+
 /* ---- Settings modal ---- */
 
 .saved-name {

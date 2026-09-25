@@ -30,7 +30,7 @@
 // 4. Nothing under /api/ is ever cached. A cached leaderboard is a wrong
 //    answer, not a stale one, and a cached run would be somebody else's.
 
-const VERSION = "wordrain-v12";
+const VERSION = "wordrain-v13";
 
 const SHELL = `wordrain-shell-${VERSION}`;
 
@@ -55,6 +55,7 @@ const PRECACHE = [
   "/js/icons.js",
   "/js/leaderboard.js",
   "/js/rules.js",
+  "/js/seed.js",
   "/js/settings.js",
   "/js/theme.js",
   "/js/ui.js",
