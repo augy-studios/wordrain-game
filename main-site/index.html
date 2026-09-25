@@ -205,6 +205,9 @@
                 <button id="playAgainBtn" class="btn btn-primary pill" type="button" aria-keyshortcuts="Space F1">
                     <span data-icon="refresh"></span>Play again<kbd class="kbd-hint" aria-hidden="true">Space</kbd>
                 </button>
+                <button id="replayBtn" class="btn btn-quiet pill" type="button">
+                    <span data-icon="replay"></span>Watch replay
+                </button>
                 <button id="resultBoardBtn" class="btn btn-quiet pill" type="button">
                     <span data-icon="trophy"></span>Leaderboard
                 </button>
@@ -224,6 +227,37 @@
             <p class="credit">Redesigned by NamespaceEcho</p>
         </div>
     </div>
+
+    <!-- Instant replay of the game just finished, over the field. game.js
+         fills it in and draws the game above it. -->
+    <section id="replayBar" class="replay-bar glass" aria-label="Replay" hidden>
+        <div class="replay-head">
+            <p id="replayCaption" class="replay-caption"></p>
+            <span id="replayTime" class="replay-time"></span>
+        </div>
+        <div class="replay-track">
+            <!-- A tick for each missed word. -->
+            <div id="replayMarks" class="replay-marks" aria-hidden="true"></div>
+            <input id="replaySeek" class="replay-seek" type="range" min="0" max="0" step="1" value="0" aria-label="Replay position">
+        </div>
+        <div class="replay-controls">
+            <div class="replay-steps">
+                <button id="replayBack" class="glass-btn small" type="button" aria-label="Back a step" aria-keyshortcuts="ArrowLeft">
+                    <span data-icon="stepBack"></span>
+                </button>
+                <button id="replayPlay" class="glass-btn" type="button" aria-label="Pause replay" aria-keyshortcuts="Space"></button>
+                <button id="replayForward" class="glass-btn small" type="button" aria-label="Forward a step" aria-keyshortcuts="ArrowRight">
+                    <span data-icon="stepForward"></span>
+                </button>
+            </div>
+            <button id="replayClose" class="btn btn-quiet pill replay-close" type="button" aria-keyshortcuts="Escape">
+                <span data-icon="close"></span>Done
+            </button>
+        </div>
+        <p class="keys-legend replay-keys">
+            <kbd>Space</kbd> play or pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step, <kbd>Esc</kbd> done.
+        </p>
+    </section>
 
     <!-- Leaderboard modal -->
     <div class="modal-backdrop hidden" id="boardModal">

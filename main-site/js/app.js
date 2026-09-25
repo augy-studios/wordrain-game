@@ -116,7 +116,8 @@ function wireModals(game) {
     });
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeTopModal();
+    // Handled, so the game does not take the same Esc for itself.
+    if (e.key === "Escape" && closeTopModal()) e.preventDefault();
   });
 
   // Every window stops the rain first. Closing it leaves the game paused,

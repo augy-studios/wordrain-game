@@ -50,6 +50,14 @@ first letter nothing on screen shares is preferred.
 name, which is remembered in this browser. Four boards: best score, total
 points, highest level, and most words in one game.
 
+**Instant replay:** Watch replay on the game over panel plays the game back
+over the field, drawn from a recording `js/replay.js` keeps while it is
+played. A line above the timeline says what just happened: each letter typed,
+each word popped or missed, each level, with mistakes in red, and the
+timeline has a red tick at every miss. `Space` plays and pauses, `←` `→` step
+back and forward one of those events at a time, dragging the timeline seeks,
+and `Esc` or Done goes back to the game over panel.
+
 **Settings**, kept in this browser's local storage:
 
 | Setting | Default | What it does |

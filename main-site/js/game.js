@@ -18,6 +18,7 @@ import {
   waterAfter,
   wordScore,
 } from "./rules.js";
+import { Recording } from "./replay.js";
 import { cleanSeed, makeSeed, seededRandom } from "./seed.js";
 import { FALLBACK_WORDS, createWordPicker, normalizeWords } from "./words.js";
 
@@ -159,6 +160,7 @@ export function initGame() {
   let run = null; // this game's leaderboard run
   let result = null; // the finished game, kept so the submit can be retried
   let autoplay = false; // F2, or three quick taps on the level; deliberately not shown anywhere
+  let rec = new Recording(); // this game, for the replay once it ends
 
   /* ---- Canvas size ---- */
 
@@ -327,7 +329,9 @@ export function initGame() {
       falling: state.drops.filter((d) => !d.dead).map((d) => d.word),
     });
     const random = seededRandom(`${state.seed}/${n}`);
-    state.drops.push(new Drop(word, random() < doubleChance(state.time, state.level), random));
+    const drop = new Drop(word, random() < doubleChance(state.time, state.level), random);
+    state.drops.push(drop);
+    rec.drops.set(drop.id, drop);
   }
 
   const lowest = (drops) => drops.reduce((best, d) => (!best || d.y > best.y ? d : best), null);
@@ -341,8 +345,21 @@ export function initGame() {
     state.log.push([drop.spawnedAt, Math.floor(state.time * 1000), drop.word, hit ? 1 : 0, drop.isDouble ? 1 : 0]);
   }
 
+  // A line for the replay to show, and to step to.
+  function note(kind, text, extra) {
+    rec.addEvent({ kind, text, t: state.time, ...extra });
+  }
+
+  const named = (drop) => `${drop.isDouble ? "double " : ""}"${drop.word}"`;
+
   function onMiss(drop) {
     record(drop, false);
+    const typing = drop.id === state.targetId && state.input;
+    note("miss", `Missed ${named(drop)}${typing ? ` with "${state.input}" typed` : ""}`, {
+      bad: true,
+      x: drop.x,
+      y: waterTop(),
+    });
     state.misses += 1;
     state.waterTarget = waterAfter(state.waterTarget, false, drop.isDouble);
     splash(drop.x, waterTop(), true);
@@ -351,10 +368,12 @@ export function initGame() {
 
   function pop(drop) {
     record(drop, true);
+    const points = wordScore(drop.word.length, drop.isDouble, state.level);
+    note("pop", `Popped ${named(drop)}, +${points}`, { x: drop.x, y: drop.y });
     drop.dead = true;
     state.drops = state.drops.filter((d) => d !== drop);
     state.words += 1;
-    state.score += wordScore(drop.word.length, drop.isDouble, state.level);
+    state.score += points;
     state.waterTarget = waterAfter(state.waterTarget, true, drop.isDouble);
     splash(drop.x, drop.y, false);
     state.input = "";
@@ -428,13 +447,28 @@ export function initGame() {
       return;
     }
     if (next && !live.some((d) => d.word.startsWith(next)) && getSettings().ignore_wrong) {
+      note("refused", `No word starts "${next}", so it was ignored`, { bad: true });
       rejectKey();
       renderBuffer();
       return;
     }
+    noteTyping(next);
     state.input = next;
     refreshTarget();
     renderBuffer();
+  }
+
+  // The replay's line for the typing box going from what it holds to
+  // `next`. A start no falling word has is a mistake.
+  function noteTyping(next) {
+    const from = state.input;
+    const text = next.startsWith(from)
+      ? `Typed "${next}"`
+      : from.startsWith(next)
+        ? next ? `Deleted back to "${next}"` : `Deleted "${from}"`
+        : `Changed "${from}" to "${next}"`;
+    const fits = !next || state.drops.some((d) => !d.dead && d.word.startsWith(next));
+    note("type", fits ? text : `${text}, which starts no word`, { bad: !fits });
   }
 
   function typeChar(c) {
@@ -452,6 +486,7 @@ export function initGame() {
 
   function backspace() {
     if (!state.running || state.over || !state.input) return;
+    noteTyping(state.input.slice(0, -1));
     state.input = state.input.slice(0, -1);
     refreshTarget();
     renderBuffer();
@@ -459,6 +494,7 @@ export function initGame() {
 
   function clearInput() {
     if (state.over) return;
+    if (state.input) note("type", `Cleared "${state.input}"`);
     state.input = "";
     state.targetId = null;
     renderBuffer();
@@ -515,7 +551,7 @@ export function initGame() {
   let lastTapAt = 0;
 
   function onLevelTap(e) {
-    if (e.pointerType !== "touch") return;
+    if (e.pointerType !== "touch" || replay.on) return;
     // Leaves focus where it was, so the device's keyboard stays open.
     e.preventDefault();
     const now = performance.now();
@@ -653,6 +689,8 @@ export function initGame() {
 
   function newGame(seed = makeSeed()) {
     gameNumber += 1;
+    stopReplay();
+    rec = new Recording();
     words.reset();
     Object.assign(state, {
       seed,
@@ -739,6 +777,7 @@ export function initGame() {
     state.running = false;
     state.over = true;
     state.overAt = performance.now();
+    note("end", "The water is full: game over", { bad: true });
     // The next game is the reader's again.
     autoplay = false;
     result = {
@@ -829,12 +868,212 @@ export function initGame() {
     submitAs(name);
   }
 
+  /* ---- Instant replay ---- */
+
+  // A finished game can be watched again from its recording: played, paused,
+  // scrubbed, or stepped through an event at a time, every key, pop, miss and
+  // level, each with a line saying what it was. The field is drawn as it was
+  // played, shrunk if need be to fit above the replay's controls.
+  const replayBar = $("replayBar");
+  const seek = $("replaySeek");
+  const caption = $("replayCaption");
+  const replay = { on: false, playing: false, t: 0, frame: 0, ev: -1 };
+  const views = new Map(); // drops as the replay draws them, by id
+
+  const clock = (seconds) => {
+    const s = Math.floor(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+
+  // Only written when it differs, since the replay renders every frame.
+  const put = (el, text) => {
+    if (el.textContent !== text) el.textContent = text;
+  };
+
+  function openReplay() {
+    if (!state.over || !rec.frames.length) return;
+    replay.on = true;
+    document.body.classList.add("replaying");
+    $("gameOverOverlay").classList.add("hidden");
+    replayBar.hidden = false;
+    views.clear();
+    seek.max = String(rec.frames.length - 1);
+    const last = Math.max(1, rec.frames.length - 1);
+    $("replayMarks").innerHTML = rec.events
+      .filter((e) => e.kind === "miss")
+      .map((e) => `<span style="left: ${(rec.frameOf(e) / last) * 100}%"></span>`)
+      .join("");
+    replayFrom(0);
+    setReplayPlaying(true);
+    $("replayPlay").focus();
+  }
+
+  // Leaves the replay, for newGame on its way to a fresh game.
+  function stopReplay() {
+    if (!replay.on) return;
+    replay.on = false;
+    replay.playing = false;
+    document.body.classList.remove("replaying");
+    replayBar.hidden = true;
+    particles.length = 0;
+    renderStats();
+  }
+
+  // Back to the game over panel, where the game can still be added.
+  function closeReplay() {
+    stopReplay();
+    $("gameOverOverlay").classList.remove("hidden");
+    $("replayBtn").focus();
+  }
+
+  function setReplayPlaying(playing) {
+    // Play from the end starts again from the top.
+    if (playing && replay.frame >= rec.frames.length - 1) replayFrom(0);
+    replay.playing = playing;
+    const btn = $("replayPlay");
+    btn.innerHTML = icon(playing ? "pause" : "play");
+    btn.setAttribute("aria-label", playing ? "Pause replay" : "Play replay");
+    // Read out while stepping, not forty times a second while playing.
+    caption.setAttribute("aria-live", playing ? "off" : "polite");
+  }
+
+  // Jumps to frame i, counting the events before it as seen, without their splashes.
+  function replayFrom(i) {
+    particles.length = 0;
+    replay.frame = i;
+    replay.t = rec.frames[i].t;
+    replay.ev = rec.lastEventAt(i);
+    renderReplay();
+  }
+
+  function stepReplay(dir) {
+    setReplayPlaying(false);
+    particles.length = 0;
+    const { frame, ev } = rec.step(replay.frame, replay.ev, dir);
+    const moved = ev !== replay.ev;
+    replay.frame = frame;
+    replay.ev = ev;
+    replay.t = rec.frames[frame].t;
+    if (dir > 0 && moved) splashFor(rec.events[ev]);
+    renderReplay();
+  }
+
+  function splashFor(event) {
+    if (event.kind === "pop") splash(event.x, event.y, false);
+    else if (event.kind === "miss") splash(event.x, event.y, true);
+  }
+
+  // Game time runs as it did, so the replay goes at the pace the game did.
+  function updateReplay(dt) {
+    updateParticles(dt);
+    if (!replay.playing) return;
+    const frames = rec.frames;
+    replay.t += dt;
+    let i = replay.frame;
+    while (i + 1 < frames.length && frames[i + 1].t <= replay.t) i += 1;
+    replay.frame = i;
+    while (replay.ev + 1 < rec.events.length && rec.frameOf(rec.events[replay.ev + 1]) <= i) {
+      replay.ev += 1;
+      splashFor(rec.events[replay.ev]);
+    }
+    if (i === frames.length - 1) setReplayPlaying(false);
+    renderReplay();
+  }
+
+  function renderReplay() {
+    const f = rec.frames[replay.frame];
+    const event = rec.events[replay.ev];
+    put($("level"), String(f.level));
+    put($("misses"), String(f.misses));
+    put($("score"), String(f.score));
+    const text = event ? event.text : "The game starts";
+    put(caption, text);
+    caption.classList.toggle("bad", Boolean(event?.bad));
+    put($("replayTime"), `${clock(f.t)} / ${clock(rec.frames[rec.frames.length - 1].t)}`);
+    seek.value = String(replay.frame);
+    const played = (replay.frame / Math.max(1, rec.frames.length - 1)) * 100;
+    $("replayMarks").style.setProperty("--played", `${played}%`);
+    const valueText = `${clock(f.t)}, ${text}`;
+    if (seek.getAttribute("aria-valuetext") !== valueText) seek.setAttribute("aria-valuetext", valueText);
+  }
+
+  function viewOf(id) {
+    let view = views.get(id);
+    if (!view) {
+      const d = rec.drops.get(id);
+      view = Object.assign(Object.create(Drop.prototype), {
+        id,
+        word: d.word,
+        isDouble: d.isDouble,
+        r: d.r,
+        textWidth: d.textWidth,
+      });
+      views.set(id, view);
+    }
+    return view;
+  }
+
+  // The recorded field, as large as fits between the top of the screen and
+  // the replay's controls, and never larger than it was played. The water
+  // runs on down behind the controls to the foot of the screen.
+  function drawReplay() {
+    const f = rec.frames[replay.frame];
+    ctx.clearRect(0, 0, width, height);
+    const room = replayBar.getBoundingClientRect().top - 8 - play.top;
+    const fieldHeight = Math.max(1, f.bottom - f.top);
+    const s = clamp(Math.min(room / fieldHeight, width / f.width), 0.2, 1);
+    const ox = (width - f.width * s) / 2;
+    const oy = play.top - f.top * s;
+    const depth = fieldHeight * f.water;
+    drawWater(oy + (f.bottom - depth) * s, height, depth * s);
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(s, s);
+    const typed = f.input.length;
+    for (let k = 0; k < f.pos.length; k += 3) {
+      const view = viewOf(f.pos[k]);
+      view.x = f.pos[k + 1];
+      view.y = f.pos[k + 2];
+      view.draw(view.id === f.target, typed);
+    }
+    drawParticles();
+    ctx.restore();
+  }
+
+  // Space plays and pauses, the arrows step, Esc goes back to the result.
+  // On the timeline itself the arrows are its own, a frame at a time.
+  function onReplayKey(e) {
+    const key = e.key;
+    const on = e.target instanceof Element ? e.target : null;
+    if (key === "Escape") {
+      closeReplay();
+    } else if (key === "F1") {
+      e.preventDefault();
+      restart();
+    } else if (key === "F2") {
+      e.preventDefault();
+    } else if (key === " ") {
+      if (on?.closest("button, a")) return;
+      e.preventDefault();
+      if (!e.repeat) setReplayPlaying(!replay.playing);
+    } else if ((key === "ArrowLeft" || key === "ArrowRight") && !on?.closest("input")) {
+      e.preventDefault();
+      stepReplay(key === "ArrowRight" ? 1 : -1);
+    }
+  }
+
   /* ---- Keys ---- */
 
   function onKeyDown(e) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
     // A window is open, or somebody is typing their name.
-    if (document.body.classList.contains("modal-open")) return;
+    // Esc that closed a window closes only that.
+    if (e.defaultPrevented || document.body.classList.contains("modal-open")) return;
+    if (replay.on) {
+      onReplayKey(e);
+      return;
+    }
     const key = e.key;
     // In the typing box, letters and Backspace arrive through its input
     // event instead; Space, Esc, F1 and F2 are still the game's. Any other
@@ -900,6 +1139,7 @@ export function initGame() {
     const level = levelAt(state.time);
     if (level !== state.level) {
       state.level = level;
+      note("level", `Level ${level}`);
       renderStats();
     }
 
@@ -924,9 +1164,9 @@ export function initGame() {
     updateParticles(dt);
   }
 
-  function drawWater() {
-    const top = waterTop();
-    const depth = play.bottom - top;
+  // Water from `top` down to `bottom`, with waves sized for `depth`: in the
+  // replay the water fills to the foot of the screen, deeper than it was.
+  function drawWater(top, bottom, depth = bottom - top) {
     if (depth <= 0.5) return;
 
     const amp = clamp(depth * 0.04, 1, 8);
@@ -936,14 +1176,14 @@ export function initGame() {
       const wave =
         Math.sin((x + state.wavePhase) / len) * amp * 0.5 +
         Math.cos((x * 0.6 + state.wavePhase * 0.6) / (len * 0.85)) * amp * 0.25;
-      surface.push([x, Math.min(play.bottom, top + wave)]);
+      surface.push([x, Math.min(bottom, top + wave)]);
     }
 
     // Flat colour and a flat surface line; no gradients.
     ctx.beginPath();
-    ctx.moveTo(0, play.bottom);
+    ctx.moveTo(0, bottom);
     for (const [x, y] of surface) ctx.lineTo(x, y);
-    ctx.lineTo(width, play.bottom);
+    ctx.lineTo(width, bottom);
     ctx.closePath();
     ctx.fillStyle = rgba(palette.water);
     ctx.fill();
@@ -955,17 +1195,41 @@ export function initGame() {
     ctx.stroke();
   }
 
-  function draw() {
-    ctx.clearRect(0, 0, width, height);
-    drawWater();
-    const typed = state.input.length;
-    for (const d of state.drops) d.draw(d.id === state.targetId, typed);
+  function drawParticles() {
     for (const p of particles) {
       ctx.fillStyle = rgba(p.color, 1 - p.t / p.life);
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+    drawWater(waterTop(), play.bottom);
+    const typed = state.input.length;
+    for (const d of state.drops) d.draw(d.id === state.targetId, typed);
+    drawParticles();
+  }
+
+  // What the game looked like after this update, for the replay.
+  function recordFrame() {
+    rec.addFrame(
+      {
+        t: state.time,
+        level: state.level,
+        misses: state.misses,
+        score: state.score,
+        input: state.input,
+        target: state.targetId,
+        water: state.waterLevel,
+        top: play.top,
+        bottom: play.bottom,
+        width,
+      },
+      state.drops,
+      { force: state.over }
+    );
   }
 
   let last = performance.now();
@@ -975,10 +1239,17 @@ export function initGame() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     measurePlayArea();
-    if (state.running && !state.over) update(dt);
+    if (replay.on) {
+      updateReplay(dt);
+    } else if (state.running && !state.over) {
+      update(dt);
+      recordFrame();
+    }
     // The waves keep moving slowly while paused.
-    state.wavePhase += 80 * (1 + state.level * 0.05) * dt * (state.running ? 1 : 0.2);
-    draw();
+    const moving = state.running || replay.playing;
+    state.wavePhase += 80 * (1 + state.level * 0.05) * dt * (moving ? 1 : 0.2);
+    if (replay.on) drawReplay();
+    else draw();
   }
 
   /* ---- Start ---- */
@@ -1009,6 +1280,18 @@ export function initGame() {
   // Wrapped, so the click event is not taken for a seed.
   $("restartBtn").addEventListener("click", () => restart());
   $("playAgainBtn").addEventListener("click", () => restart());
+  $("replayBtn").addEventListener("click", openReplay);
+  $("replayPlay").addEventListener("click", () => setReplayPlaying(!replay.playing));
+  $("replayBack").addEventListener("click", () => stepReplay(-1));
+  $("replayForward").addEventListener("click", () => stepReplay(1));
+  $("replayClose").addEventListener("click", closeReplay);
+  // A click or tap on a replay button leaves focus where it was, so Space
+  // goes on playing and pausing rather than pressing that button again.
+  replayBar.querySelectorAll("button").forEach((btn) => btn.addEventListener("pointerdown", (e) => e.preventDefault()));
+  seek.addEventListener("input", () => {
+    setReplayPlaying(false);
+    replayFrom(Number(seek.value));
+  });
   document.querySelectorAll("[data-copy-seed]").forEach((btn) => btn.addEventListener("click", () => copySeed(btn)));
   document.querySelectorAll(".seed-form").forEach((form) => form.addEventListener("submit", onSeedSubmit));
   $("clearBtn").addEventListener("click", () => {
@@ -1029,9 +1312,15 @@ export function initGame() {
   $("submitForm").addEventListener("submit", onSubmit);
   buffer.addEventListener("animationend", () => buffer.classList.remove("shake"));
 
+  // Pauses the game, or the replay if one is showing.
+  function pauseAll() {
+    setPaused(true, { focus: false });
+    if (replay.on) setReplayPlaying(false);
+  }
+
   // Leaving the tab pauses, so nothing is lost while the reader is away.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") setPaused(true, { focus: false });
+    if (document.visibilityState === "hidden") pauseAll();
   });
 
   loadWords();
@@ -1039,6 +1328,6 @@ export function initGame() {
   requestAnimationFrame(frame);
 
   return {
-    pause: () => setPaused(true, { focus: false }),
+    pause: pauseAll,
   };
 }

@@ -17,6 +17,10 @@ export const icons = {
   // One arrow round, for clearing the typing box: not the two-arrow refresh,
   // which means start the game again.
   undo: svg(`<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M18.5 2.5v4.2h-4.2"/>`),
+  // The undo arrow turned the other way, round a play triangle.
+  replay: svg(`<path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M5.5 2.5v4.2h4.2"/><path d="M10 9v6l5-3-5-3Z"/>`),
+  stepBack: svg(`<path d="M6 5v14"/><path d="M18 5.5v13L9 12l9-6.5Z"/>`),
+  stepForward: svg(`<path d="M18 5v14"/><path d="M6 5.5v13L15 12 6 5.5Z"/>`),
   backspace: svg(`<path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="m17 9-6 6M11 9l6 6"/>`),
   chevron: svg(`<path d="m9 5 7 7-7 7"/>`),
   trophy: svg(
